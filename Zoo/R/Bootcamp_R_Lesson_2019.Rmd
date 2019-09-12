@@ -45,10 +45,10 @@ To explore this interplay, we will end this module with a project where we look 
 ####NOTE: You will need to change the file path based on where you saved these files.
 
 #extract metadata (information about each cell, e.g. cluster assignment)
-cell_metadata <- read.table("/Users/kerriganblake/Desktop/Misc/R_Markdown_Bootcamp_2018/cell_metadata.txt")
+cell_metadata <- read.table("/Users/jffchen/Desktop/MCSB_R_Bootcamp_2019/cell_metadata.txt")
 
 #extract the normalized data matrix
-expression_matrix <- readRDS("/Users/kerriganblake/Desktop/Misc/R_Markdown_Bootcamp_2018/expression_matrix.rds")
+expression_matrix <- readRDS("/Users/jffchen/Desktop/MCSB_R_Bootcamp_2019/expression_matrix.rds")
 ```
 
 ##Data Investigation
@@ -80,7 +80,7 @@ table(cell_metadata$orig.ident, cell_metadata$res.0.4)
 #first item is the dataframe (a type of R object containing a mix of numbers, characters and factors) that has the data you want to plot
 #next, you give a mapping, where x=column name of data you want to plot on the x-axis, etc with fill generating a different color for each factor you plot
 #finally, you tell ggplot the type of plot you want to render (for example, geom_point() would make a dot plot)
-ggplot(cell_metadata, mapping=aes(x=orig.ident, y=nGene, fill=orig.ident)) + geom_violin()
+ggplot(cell_metadata, mapping=aes(x=orig.ident, y=nGene, fill=orig.ident)) + geom_violin() + geom_jitter()
 ```
 
 ###Question 4a: What are the most commonly expressed genes in the dataset? (i.e. Which gene or set of genes is expressed in the largest number of cells)?
@@ -89,7 +89,7 @@ To check this, we will use rowSums() on our expression matrix along with which()
 #this technically sums a true/false matrix where true = 1 and false = 0
 n_cells_expressed <- rowSums(expression_matrix > 0)
 
-#which selects values from the first vector that match values in the second vector
+#which selects values from the first vector that match values in the second vector ***which will pull out a index of
 most_expressed <- n_cells_expressed[which(n_cells_expressed %in% max(n_cells_expressed))]
 
 #to keep only the gene names, we can use names()
@@ -115,33 +115,33 @@ plot(sorted_expression)
 Once you have a feel for your given dataset, you may need to combine, rearrange, or subset it to answer more questions. R is designed to make this task easy, but only if you use the right packages!
 
 ###Question 5: What is the correlation of the proliferative marker MKI67 to G2.M Score in our dataset?
-We have metadata that contains a G2.M score for each cell, and a separate matrix that contains information on MKI67 (our expression matrix). Before we can get a correlation, we need to ensure that each cell is properly matched to an expression value as well as a G2.M Score. One way of doing that is the following.
+We have metadata that contains a G2.M score for each cell, and a separate matrix that contains information on MKI67 (our expression matrix). Before we can get a correlation, we need to ensure that each cell is properly matched to an expression value as well as a G2.M Score. One way of doing that is the following.  **put ki67 gene expression into metadata**
 ```{r q5}
 #Step 1: Extract MKI67 & format as a data frame
 #NOTE: If expression_matrix is denoted as a data.frame, this will have improper dimensions for downstream steps
 #R is overly tolerant of variable types in the sense that it will not throw an error but it will give absurd results
 #Therefore, we ensure expression_matrix is a matrix by wrapping it in the data type altering as.matrix()
 MKI67_df <- as.matrix(expression_matrix)["MKI67",]
-MKI67_expression <- data.frame(MKI67 = MKI67_df)
+MKI67_expression <- data.frame(MKI67 = MKI67_df) #convert matrix vector into dataframe
 
 #Step 2: Reorder data frame to match ordering of metadata
-MKI67_expression <- MKI67_expression[rownames(cell_metadata),]
+MKI67_expression <- MKI67_expression[rownames(cell_metadata),] #caracter indexing, making it back into a vector
 
 #Step 3: Once we are sure that our dataset are in the same order, we can add a column of MKI67 expresison to our cell metadata taking advantage of the $ operator for column references.
 cell_metadata$MKI67_expression <- MKI67_expression
 
 #Step 4: Finally, we can compute the correlation 
 correlation_mki67 <- cor(cell_metadata$G2M.Score, cell_metadata$MKI67_expression)
-#0.7382222
+#0.7382222, so G2M should be dividing and close correlation w/ mki67 shows the g2m score is correct
 ```
 
 ###Question 6: What is the correlation of the proliferative marker MKI67 to G2.M Score in ONLY the WT cells?
 Since we have already generated the data frame in the previous question, this question only requires removing data that is not from the WT condition. To do this, we will use the subset function.
 ```{r q6}
-WT_subset <- subset(cell_metadata, orig.ident == "WT")
+WT_subset <- subset(cell_metadata, orig.ident == "WT") # == means if orig.ident is WT, then keep it for the WT_subset
 
-dim(cell_metadata) #1986 x 9
-dim(WT_subset) #993 x 9
+dim(cell_metadata) #1986 x 9, check dimention of the gene cell matrix
+dim(WT_subset) #993 x 9, check dimention of the gene cell matrix
 
 correlation_mki67_WT <- cor(WT_subset$G2M.Score, WT_subset$MKI67_expression)
 #0.7946919
@@ -152,16 +152,16 @@ In this question, we will introduce the incredibly useful package dplyr. This pa
 ```{r q7}
 #first, we list the data frame we need to work from, in this case, cell_metadata
 #%>% syntax will take the data output from the previous step and perform the task listed after the arrow on that data
-#we group our data frame first by the cluster, and next by condition
+#we group our data frame first by the cluster, and next by condition  **will have cluster column, orig ident, and avg ki67, better piviot table**
 #finally, we summarize our data for each group by taking the average of MKI67
-average_mki67_by_cluster_and_condition <- cell_metadata %>% 
+average_mki67_by_cluster_and_condition <- cell_metadata %>%
   group_by(res.0.4, orig.ident) %>% 
-  summarise(mean_mki67 = mean(MKI67_expression))
+  summarise(mean_mki67 = mean(MKI67_expression))  
 ```
 
 ###Question 8: Show the average MKI67 expression using a barplot grouped by cluster and colored by condition
 ```{r q8}
-ggplot(average_mki67_by_cluster_and_condition, mapping = aes(x=res.0.4, y=mean_mki67, fill=orig.ident)) + geom_bar(stat="identity", position="dodge")
+ggplot(average_mki67_by_cluster_and_condition, mapping = aes(x=res.0.4, y=mean_mki67, fill=orig.ident)) + geom_bar(stat="identity", position="dodge") #position=dodge prevents stacked bargraph
 ```
 
 ###Question 9: Repeat questions 7 & 8, but this time, only compute the average expression for cells that *actually* express MKI67.
@@ -174,7 +174,7 @@ average_mki67_by_cluster_and_condition_sub <- mki67_sub %>%
 
 ggplot(average_mki67_by_cluster_and_condition_sub, mapping = aes(x=res.0.4, y=mean_mki67, fill=orig.ident)) + geom_bar(stat="identity", position="dodge")
 
-#Option 2: Use dplyr filter function
+#Option 2: Use dplyr filter function **dpylr can filter and saves you from making a extra r object
 average_mki67_by_cluster_and_condition_sub_2 <- mki67_sub %>% 
   group_by(res.0.4, orig.ident) %>% 
   filter(MKI67_expression > 0) %>% 
@@ -190,17 +190,17 @@ genes_of_interest <- c("KRT14","KRT18","ANKRD30A","SLPI","GAPDH")
 
 #to plot these genes in the way requested, we will need to make a new data frame similar to our previous one with MKI67. This example shows some of the weird tricks you have to use in R to get things working across data objects.
 genes_of_interest_df <- expression_matrix[genes_of_interest,rownames(cell_metadata)]
-matrix_subset_of_interest <- as.matrix(t(genes_of_interest_df))
+matrix_subset_of_interest <- as.matrix(t(genes_of_interest_df)) #t command is transpose. changes gene from row to columns now
 
 #since we have multiple columns to add to the metadata, we will want to 
-genes_of_interest_with_necessary_metadata <- merge(cell_metadata[,c("res.0.4","orig.ident")], as.data.frame(matrix_subset_of_interest), by="row.names")
+genes_of_interest_with_necessary_metadata <- merge(cell_metadata[,c("res.0.4","orig.ident")], as.data.frame(matrix_subset_of_interest), by="row.names")  #merge will combine cell metadata and put it into our gene of interest subset
 
-rownames(genes_of_interest_with_necessary_metadata) <- genes_of_interest_with_necessary_metadata$Row.names
+rownames(genes_of_interest_with_necessary_metadata) <- genes_of_interest_with_necessary_metadata$Row.names #r automatically changed rownames
 
 #remove the column Row.Names which exists in the first position of the data frame
 genes_of_interest_with_necessary_metadata <- genes_of_interest_with_necessary_metadata[,-1]
 
-#now, we want to reformat this data to generate a list of gene names instead of having each gene with its own column (since we need a single column for the x-axis to be each gene)
+#now, we want to reformat this data to generate a list of gene names instead of having each gene with its own column (since we need a single column for the x-axis to be each gene)  **gather is in tydr package., reformat data to work with ggplot
 genes_melt <- genes_of_interest_with_necessary_metadata %>%
   group_by(res.0.4, orig.ident) %>%
   gather(key="gene",value="expression", KRT14:GAPDH)
@@ -215,18 +215,55 @@ genes_of_interest <- c("KRT14","KRT18","ANKRD30A","SLPI","GAPDH")
 
 pheatmap(expression_matrix[genes_of_interest,],
          annotation_col= cell_metadata[,c("res.0.4","orig.ident")],
-         show_colnames = FALSE)
+         show_colnames = FALSE)  
+
+# can do scale = "row", normalizes each gene so it shows zscore
 ```
 
 ##Project: Given the following list of cell cycle genes, perform as many tasks as you can in the remaining time. 
 
 ```{r cell cycle genes}
-cell_cycle_genes <- as.character(read.table("/Users/kerriganblake/Desktop/Misc/R_Markdown_Bootcamp_2018/regev_lab_cell_cycle_genes.txt", header=F)$V1)
+cell_cycle_genes <- as.character(read.table("/Users/jffchen/Desktop/MCSB_R_Bootcamp_2019/regev_lab_cell_cycle_genes.txt", header=F)$V1)
 ```
 
 ###Task 1: Reduce the cell_cycle_genes to only those that are present and expressed in at least 500 cells. 
 ####Hint: There will be 14 genes that pass this threshold
+```{r cell cycle genes}
 
+cellcyclegenes_expression_matrix <- as.matrix(expression_matrix)[which(rownames(expression_matrix) %in% cell_cycle_genes),]  # %in% will search for T or F matches between the two indicated objects, "which" will output the row number of the first object in that order.
+
+match(rownames(cellcyclegenes_expression_matrix),cell_cycle_genes) #ensures that the code above worked, will show the corresponding row number of the two inputed objects
+
+dim(cellcyclegenes_expression_matrix)
+
+# add in cell metadata into gene exp list of ccgenes
+ccgene <- cellcyclegenes_expression_matrix[rownames(cell_metadata),]
+
+
+
+
+
+##########
+#Step 1: Extract MKI67 & format as a data frame
+#NOTE: If expression_matrix is denoted as a data.frame, this will have improper dimensions for downstream steps
+#R is overly tolerant of variable types in the sense that it will not throw an error but it will give absurd results
+#Therefore, we ensure expression_matrix is a matrix by wrapping it in the data type altering as.matrix(
+
+MKI67_df <- as.matrix(expression_matrix)["MKI67",]
+MKI67_expression <- data.frame(MKI67 = MKI67_df) #convert matrix vector into dataframe
+
+#Step 2: Reorder data frame to match ordering of metadata
+MKI67_expression <- MKI67_expression[rownames(cell_metadata),] #caracter indexing, making it back into a vector
+
+#Step 3: Once we are sure that our dataset are in the same order, we can add a column of MKI67 expresison to our cell metadata taking advantage of the $ operator for column references.
+cell_metadata$MKI67_expression <- MKI67_expression
+
+#Step 4: Finally, we can compute the correlation 
+correlation_mki67 <- cor(cell_metadata$G2M.Score, cell_metadata$MKI67_expression)
+#0.7382222, so G2M should be dividing and close correlation w/ mki67 shows the g2m score is correct
+
+
+###########################
 ###Task 2: Assign each gene in cell_cycle_genes to a specific phase of the cell cycle based on our dataset.
 ####Hint: You will need both the cell metadata & expression_matrix for this task.
 
